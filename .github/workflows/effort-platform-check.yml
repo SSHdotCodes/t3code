@@ -1,0 +1,63 @@
+name: Reasoning effort platform checks
+
+on:
+  push:
+    branches: [codex/effort-platform-check]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Usage on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: false
+          run-install: true
+      - name: Focused usage tests
+        run: >-
+          vp test run
+          apps/server/src/usage/reasoningEffortHistory.test.ts
+          apps/server/src/provider/Drivers/codexUsage.test.ts
+          apps/server/src/provider/Drivers/claudeUsage.test.ts
+          apps/server/src/usage/usageAggregation.test.ts
+          apps/server/src/usage/usageScanCache.test.ts
+          apps/server/src/usage/usageTranscriptReader.test.ts
+          apps/server/src/usage/usageTranscriptStreaming.test.ts
+          apps/server/src/usage/UsageService.test.ts
+          packages/shared/src/usageMerge.test.ts
+          apps/web/src/components/usage/usageBreakdown.test.ts
+          apps/web/src/components/usage/UsageModelTrend.test.tsx
+          apps/web/src/components/usage/UsageProviderChart.test.ts
+          packages/client-runtime/src/state/usage.test.ts
+          packages/client-runtime/src/state/serverUsage.test.ts
+          apps/mobile/src/features/usage/usageEnvironmentSelection.test.ts
+      - name: Client and server typechecks
+        if: always()
+        run: >-
+          vp run --filter @t3tools/web --filter @t3tools/desktop
+          --filter @t3tools/mobile --filter @t3tools/shared
+          --filter @t3tools/contracts --filter @t3tools/provider-core
+          --filter @t3tools/client-runtime --filter t3 typecheck
+      - name: Production web build
+        if: always()
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
+        run: vp run --filter @t3tools/web build
